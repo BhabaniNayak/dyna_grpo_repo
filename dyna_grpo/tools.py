@@ -157,12 +157,22 @@ def call_tool(tool: str, args: dict, use_cache: bool = True) -> ToolResult:
         return ToolResult("", 0.0, f"Unknown tool: {tool}", tool)
     if use_cache:
         cached = _cache.get(tool, args)
-        if cached:
+        if cached and not _is_empty(cached):
             return cached
     result = _TOOL_FNS[tool](args)
-    if use_cache:
+    # Don't poison the cache with empty/error responses (often rate-limit transients)
+    if use_cache and not _is_empty(result):
         _cache.put(tool, args, result)
     return result
+
+
+def _is_empty(r: ToolResult) -> bool:
+    if r.error:
+        return True
+    out = (r.output or "").strip()
+    if out in ("", "[]", "{}", "null"):
+        return True
+    return False
 
 
 # ---------------- ReAct-style tool-call parsing ----------------
