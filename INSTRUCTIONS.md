@@ -141,7 +141,61 @@ Follow this. Each item links to a notebook or shell command. **Tick the box and 
 
 ---
 
-## 3. Failure recovery
+## 3. Troubleshooting
+
+This section captures every issue actually hit during setup. If you see one of these, jump to the fix.
+
+### CPU pod (prefetch)
+
+**`pip install -r requirements.txt` tries to source-build vLLM and hangs**
+The CPU pod doesn't need vLLM. Use the slim deps file instead:
+```bash
+python3.13 -m pip install --no-cache-dir -r requirements-prefetch.txt
+```
+
+**`ModuleNotFoundError: No module named 'huggingface_hub'` after pip says "already installed"**
+Python version mismatch. The image often ships `python3` → 3.8 while `pip` writes to 3.13's site-packages. Always use the same interpreter for install and run:
+```bash
+python3.13 -m pip install --no-cache-dir <pkg>
+python3.13 scripts/prefetch.py
+```
+
+**`ModuleNotFoundError: No module named 'six.moves'`**
+Broken `six` on the base image. Force-reinstall:
+```bash
+python3.13 -m pip install --no-cache-dir --force-reinstall six python-dateutil
+```
+
+**`401 Unauthorized` / `RepositoryNotFoundError` for a public Qwen repo**
+HF rate-limits anonymous metadata calls. Authenticate:
+```bash
+huggingface-cli login   # paste a READ token from https://huggingface.co/settings/tokens
+```
+
+**`No space left on device (os error 28)` mid-download**
+HF's intermediate cache is filling the small root disk. Redirect every cache to the network volume **before** running anything:
+```bash
+export HF_HOME=/workspace/dyna_grpo/hf_home
+export HF_HUB_CACHE=/workspace/dyna_grpo/hf_home/hub
+export HF_DATASETS_CACHE=/workspace/dyna_grpo/hf_home/datasets
+export HF_XET_CACHE=/workspace/dyna_grpo/hf_home/xet
+mkdir -p $HF_HOME $HF_HUB_CACHE $HF_DATASETS_CACHE $HF_XET_CACHE
+```
+The latest `scripts/prefetch.py` already sets these, but verify with `df -h /workspace`.
+
+**`/workspace` shows < 200 GB total in `df -h`**
+Your network volume isn't attached, OR was provisioned smaller. Stop the pod, edit pod settings → attach the 200 GB volume at `/workspace`, restart. The volume is independent of the pod, so files persist.
+
+**SSH dropped while `prefetch.py` was running**
+Re-run inside `tmux`:
+```bash
+tmux new -s prefetch
+python3.13 scripts/prefetch.py 2>&1 | tee /workspace/dyna_grpo/prefetch.log
+# Detach: Ctrl+b then d ;  Reattach: tmux attach -t prefetch
+```
+HF downloads are resumable; just re-run the script.
+
+### GPU pod (training)
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
@@ -149,8 +203,9 @@ Follow this. Each item links to a notebook or shell command. **Tick the box and 
 | OOM during backward | LoRA rank too high | Drop `lora_r` from 64 → 32 |
 | GRPO loss explodes | Reward scale or KL coef | Cap reward to `[-1,1]`, raise KL coef to 0.005 |
 | Predictor ECE > 0.05 | Bad temp scaling fit | Re-fit on 5K validation samples; switch to focal loss |
-| Code predictor BLEU low | Code outputs too variable | Restrict targets to `(stdout, error_type)` tuples, not full traceback |
-| Pod killed mid-train | Spot interrupt | All notebooks checkpoint every N steps to volume; resume by re-running the notebook |
+| Code predictor BLEU low | Code outputs too variable | Restrict targets to `(stdout, error_type)`, not full traceback |
+| Pod killed mid-train | Spot interrupt | Notebooks checkpoint every N steps to volume; resume by re-running |
+| `vllm` install fails on Python 3.13 | Wrong pod template | Re-provision with **PyTorch 2.5.1 / Python 3.11** template |
 
 ---
 
