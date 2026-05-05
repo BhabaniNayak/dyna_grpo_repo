@@ -206,6 +206,8 @@ HF downloads are resumable; just re-run the script.
 | Code predictor BLEU low | Code outputs too variable | Restrict targets to `(stdout, error_type)`, not full traceback |
 | Pod killed mid-train | Spot interrupt | Notebooks checkpoint every N steps to volume; resume by re-running |
 | `vllm` install fails on Python 3.13 | Wrong pod template | Re-provision with **PyTorch 2.5.1 / Python 3.11** template |
+| `torch.cuda.is_available()` False, "driver too old" warning | Pip pulled torch built for CUDA 13 (e.g. `torch==2.11.0+cu130`); your driver is 12.x | Force-reinstall on cu124: `pip install --no-cache-dir --force-reinstall torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124` |
+| Loose pip resolves to bleeding-edge `transformers==5.x`, `trl==1.x`, etc. | `requirements.txt` had `>=` only | Pull latest `requirements.txt` (now pinned) and `pip install --no-cache-dir -r requirements.txt` |
 
 ---
 
@@ -215,6 +217,22 @@ Fill this in as you go. **Date/time, what was run, key numbers, any deviations f
 
 ```
 ============================================================
+  DATE: 2026-05-05  POD: CPU-only  TIME: ~30 min  COST: ~$0.163
+  NOTEBOOK: scripts/prefetch.py
+  KEY METRICS:
+    - Models cached: 9.0 GB (Qwen3-4B-Instruct-2507 + Qwen3-0.6B)
+    - Datasets cached: 2.4 GB (NuminaMath-CoT, AIME-2024, MBPP)
+    - Volume free: ample
+  NOTES / DEVIATIONS:
+    - python mismatch 
+        alias python=python3.13
+        alias python3=python3.13 
+    - Issue with correct model name change 
+    - workspace network drive not mounted properly. recreated the pod with network drive mounted
+    - Force install of six 
+      python3.13 -m pip install --no-cache-dir --force-reinstall six python-dateutil 
+============================================================
+
 DATE: ____________  POD: ___________  GPU-HRS USED: ________
 NOTEBOOK: _________________________
 KEY METRICS:
@@ -222,6 +240,7 @@ KEY METRICS:
   -
 NOTES / DEVIATIONS:
 ============================================================
+
 ```
 
 (Copy the block above for each session.)

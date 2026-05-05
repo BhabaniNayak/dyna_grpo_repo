@@ -37,7 +37,13 @@ Used only to pre-populate the network volume with model weights and datasets so 
 # After provisioning the GPU pod with volume attached
 cd /workspace/dyna_grpo_repo
 git pull
-pip install -r requirements.txt
+
+# Install torch FIRST from the CUDA 12.4 index (works with driver 12.4-12.8)
+pip install --no-cache-dir torch==2.5.1 torchvision==0.20.1 \
+  --index-url https://download.pytorch.org/whl/cu124
+
+# Then the rest of the pinned stack
+pip install --no-cache-dir -r requirements.txt
 
 # Persist the HF cache redirects so nothing fills up the small root disk
 cat >> ~/.bashrc <<'EOF'
