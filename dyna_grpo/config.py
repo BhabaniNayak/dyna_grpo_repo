@@ -25,6 +25,16 @@ for p in PATHS.values():
     if not p.suffix:
         p.mkdir(parents=True, exist_ok=True)
 
+# Force HF caches onto the network volume regardless of how the kernel was launched.
+# Prefetch put model snapshots under WORKSPACE/models, so HF_HUB_CACHE points there.
+os.environ.setdefault("HF_HOME", str(WORKSPACE / "hf_home"))
+os.environ.setdefault("HF_HUB_CACHE", str(PATHS["models"]))
+os.environ.setdefault("HF_DATASETS_CACHE", str(WORKSPACE / "hf_home" / "datasets"))
+os.environ.setdefault("HF_XET_CACHE", str(WORKSPACE / "hf_home" / "xet"))
+os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
+for sub in ("hf_home", "hf_home/datasets", "hf_home/xet"):
+    (WORKSPACE / sub).mkdir(parents=True, exist_ok=True)
+
 
 @dataclass
 class ModelConfig:
