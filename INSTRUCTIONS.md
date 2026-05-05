@@ -27,13 +27,18 @@ This file is your operational checklist. Work through it top-to-bottom, recordin
 ### 1b. Pre-download from a CPU pod (saves GPU $)
 Spin up a **CPU-only pod** (e.g., 4 vCPU / 8 GB RAM, ~$0.05/hr) with the volume attached.
 ```bash
-# On the CPU pod
+# On the CPU pod — install ONLY the lightweight download deps.
+# Do NOT install requirements.txt here (it pulls vLLM/bitsandbytes which need a GPU).
 cd /workspace
 git clone <your-repo> dyna_grpo_repo
 cd dyna_grpo_repo
-pip install -r requirements.txt
-python scripts/prefetch.py        # downloads Qwen3-4B, Qwen3-0.6B, datasets
+pip install --no-cache-dir -r requirements-prefetch.txt
+export HF_HUB_ENABLE_HF_TRANSFER=1            # fast parallel downloads
+export DYNA_GRPO_WORKSPACE=/workspace/dyna_grpo
+python3 scripts/prefetch.py                    # ~25 GB, takes 15-40 min
 ```
+
+**Pod image note**: when you provision the GPU pod later, pick a template with **Python 3.10/3.11/3.12** (e.g., RunPod's "PyTorch 2.5.1" template). Python 3.13 is too new — vLLM and bitsandbytes don't ship wheels for it yet, and source builds will fail.
 Stop the CPU pod once download completes. The volume now has all weights.
 
 ### 1c. HF Hub setup (for checkpoint publishing)
