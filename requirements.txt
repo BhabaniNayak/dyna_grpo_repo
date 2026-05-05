@@ -5,14 +5,15 @@
 torch==2.5.1
 torchvision==0.20.1
 
-transformers==4.46.3
-accelerate==1.1.1
-peft==0.13.2
+transformers>=4.51,<4.55     # Qwen3 support requires >= 4.51
+tokenizers>=0.21
+accelerate>=1.4
+peft>=0.14,<0.17
 bitsandbytes==0.44.1
 datasets==3.1.0
-huggingface_hub==0.26.5
-vllm==0.6.4.post1
-trl==0.12.1
+huggingface_hub>=0.26.5
+vllm>=0.8,<0.10              # vllm 0.8+ matches transformers 4.51 for Qwen3
+trl>=0.16,<0.20
 
 sentencepiece==0.2.0
 einops==0.8.0

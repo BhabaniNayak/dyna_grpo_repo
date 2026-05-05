@@ -208,6 +208,7 @@ HF downloads are resumable; just re-run the script.
 | `vllm` install fails on Python 3.13 | Wrong pod template | Re-provision with **PyTorch 2.5.1 / Python 3.11** template |
 | `torch.cuda.is_available()` False, "driver too old" warning | Pip pulled torch built for CUDA 13 (e.g. `torch==2.11.0+cu130`); your driver is 12.x | Force-reinstall on cu124: `pip install --no-cache-dir --force-reinstall torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124` |
 | Loose pip resolves to bleeding-edge `transformers==5.x`, `trl==1.x`, etc. | `requirements.txt` had `>=` only | Pull latest `requirements.txt` (now pinned) and `pip install --no-cache-dir -r requirements.txt` |
+| `KeyError: 'qwen3'` / `model type qwen3 ... not recognized` when loading Qwen3 | `transformers < 4.51` doesn't know Qwen3 | `pip install --no-cache-dir --upgrade 'transformers>=4.51,<4.55' 'tokenizers>=0.21' 'accelerate>=1.4'`, then restart kernel |
 
 ---
 
