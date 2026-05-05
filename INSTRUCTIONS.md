@@ -232,6 +232,18 @@ Fill this in as you go. **Date/time, what was run, key numbers, any deviations f
     - workspace network drive not mounted properly. recreated the pod with network drive mounted
     - Force install of six 
       python3.13 -m pip install --no-cache-dir --force-reinstall six python-dateutil 
+  ============================================================
+  DATE: 2026-05-05  POD: 1× A100-80G
+  NOTEBOOK: 01_setup_and_tools.ipynb — DONE
+  KEY METRICS:
+    - GPU mem after model load: 7.5 GB
+    - Greedy gen latency: ~1.2s for 120 tokens
+    - ReAct calc rollout: correct (838102050)
+    - Search: empty (DDG rate limit transient)
+  NOTES: HF env vars now auto-set via config.py.
+         Cache no longer poisons empty results.
+  ============================================================                                                                                                                                                                
+
 ============================================================
 
 DATE: ____________  POD: ___________  GPU-HRS USED: ________
