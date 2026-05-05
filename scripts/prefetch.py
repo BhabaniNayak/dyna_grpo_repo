@@ -25,7 +25,7 @@ MODEL_CACHE = CACHE / "models"
 HF_CACHE.mkdir(parents=True, exist_ok=True)
 MODEL_CACHE.mkdir(parents=True, exist_ok=True)
 
-MODELS = ["Qwen/Qwen3-4B-Instruct", "Qwen/Qwen3-0.6B"]
+MODELS = ["Qwen/Qwen3-4B-Instruct-2507", "Qwen/Qwen3-0.6B"]
 DATASETS = [
     ("Maxwell-Jia/AIME_2024", None),
     ("AI-MO/NuminaMath-CoT", None),

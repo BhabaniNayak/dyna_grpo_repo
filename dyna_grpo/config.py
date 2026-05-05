@@ -28,7 +28,7 @@ for p in PATHS.values():
 
 @dataclass
 class ModelConfig:
-    actor_name: str = "Qwen/Qwen3-4B-Instruct"
+    actor_name: str = "Qwen/Qwen3-4B-Instruct-2507"
     predictor_base: str = "Qwen/Qwen3-0.6B"
     dtype: str = "bfloat16"
     lora_r: int = 64
