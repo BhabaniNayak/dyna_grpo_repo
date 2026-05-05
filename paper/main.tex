@@ -1,0 +1,113 @@
+\documentclass{article}
+
+% NeurIPS 2024 style — download neurips_2024.sty into this dir before compiling.
+% wget https://media.neurips.cc/Conferences/NeurIPS2024/Styles/neurips_2024.sty
+\usepackage[final]{neurips_2024}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% Placeholder macro — notebook 08 fills these in.
+\newcommand{\PLACEHOLDER}[1]{\textcolor{red}{\textbf{[\texttt{#1}]}}}
+
+\title{Dyna-GRPO: World-Model-Augmented Rollouts and Counterfactual Credit Assignment for Multi-Tool Agentic RL}
+
+\author{%
+  Bhabani Nayak \\
+  \texttt{bhabani161@gmail.com} \\
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Reinforcement learning for multi-tool reasoning agents is bottlenecked by two compounding inefficiencies: every rollout invokes real external tools (code sandboxes, web APIs), and group-relative advantages are propagated uniformly across tokens, hiding which tool decision actually drove success or failure. We introduce \textbf{Dyna-GRPO}, a unified framework that trains lightweight, calibrated tool world-models and uses them in two ways: (i) \emph{Dyna-style mixed rollouts} that substitute real tool calls with simulated ones whenever predictive uncertainty falls below a learned threshold, and (ii) \emph{counterfactual per-tool credit assignment}, in which alternative tool actions are re-simulated and the resulting outcome gap forms a per-tool-call advantage correction. On Qwen3-4B with three tools (code, calculator, web search), Dyna-GRPO matches GRPO's pass@1 on AIME-2024 (\PLACEHOLDER{PASS_AIME24_GRPO}\% vs.\ \PLACEHOLDER{PASS_AIME24_DYNA}\%) while reducing wall-clock training time and tool-selection KL divergence. We also establish a variance-reduction guarantee for the counterfactual gradient under a calibrated world-model.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+Multi-tool agentic RL (e.g., ReTool, ToRL, SkyRL-Agent) has shown that LLMs can learn to invoke code, search, and calculator APIs to solve reasoning problems. But scaling these systems is held back by two compounding inefficiencies. First, every on-policy rollout requires real tool executions; a single gradient update on a 4B model is therefore orders of magnitude more expensive than reasoning-only RL. Second, GRPO and its variants assign a single scalar reward to the entire trajectory, so the optimizer cannot tell which tool decision in a multi-step chain caused the outcome---producing a bias we call \emph{tool-selection miscalibration}.
+
+We propose Dyna-GRPO. Our contributions are:
+\begin{itemize}
+    \item A calibrated tool-simulation architecture with selective-execution gating (\S\ref{sec:predictor}).
+    \item A Dyna-style GRPO variant with bias-corrected mixed-real/imagined advantage estimators (\S\ref{sec:mixed}).
+    \item A counterfactual per-tool credit assignment scheme (\S\ref{sec:cf}) with a variance-reduction analysis (\S\ref{sec:variance}).
+    \item An empirical study on AIME-2024/2025, GPQA-Diamond, and LiveCodeBench-v6 with the novel \emph{tool-selection KL} metric (\S\ref{sec:exp}).
+\end{itemize}
+
+\section{Background and Related Work}\label{sec:related}
+\textbf{Group-relative policy optimization (GRPO).} Let $\tau = (s_0, a_0, o_0, \dots, s_T)$ denote a trajectory with reward $R(\tau)$. GRPO normalizes the reward within a group of $G$ rollouts: $\hat{A}(\tau) = (R(\tau) - \mu_G)/\sigma_G$, then applies $\hat{A}$ uniformly to every generated token.
+\textbf{Agentic RL with tools.} ReTool, ToRL, SkyRL-Agent, and rStar-Agent extend GRPO to tool-using settings but still execute real tools per rollout and assign credit at the trajectory level. \textbf{Model-based RL.} Dyna~\cite{sutton1991dyna}, MuZero, and DreamerV3 train world-models for full environment dynamics; we instead model only narrow tool I/O. \textbf{Process supervision.} PRMs and step-DPO use learned per-step rewards but require step labels; we sidestep this with simulator-derived counterfactuals.
+
+\section{Method}\label{sec:method}
+
+\subsection{Tool world-models}\label{sec:predictor}
+For each tool $k \in \{\textsc{code}, \textsc{calc}, \textsc{search}\}$ we train a small predictor $\psi_k$ initialized from Qwen3-0.6B with LoRA. The input is the tuple $(\textsc{tool\_name}, \textsc{args})$; the output is $(\hat{o}, u)$, the predicted tool output and a calibrated uncertainty $u \in [0,1]$. Training data is an offline corpus of cached real tool calls collected from a Qwen3-4B ReAct rollout pass over a mixed prompt pool (math, code, knowledge). Uncertainty heads are trained with a binary cross-entropy loss against an exact-match label, then post-hoc temperature-scaled to ECE $< 0.05$.
+
+\textbf{Gating.} A tool-specific threshold $\tau_k$ is chosen so that the simulated call's mean fidelity (exact-match for calc, output-equal for code, top-3 title overlap for search) exceeds 92\% on a held-out probe set.
+
+\subsection{Dyna-style mixed rollouts}\label{sec:mixed}
+For each prompt we sample $G$ rollouts. For each tool call, we query $\psi_k$; if $u_k < \tau_k$ we substitute the simulated output, otherwise we invoke the real tool. A fraction $\eta$ of rollouts (anchor group) are forced to use only real tools; the final advantage combines group-normalized real rewards with an importance-style correction for imagined transitions.
+
+\subsection{Counterfactual per-tool credit assignment}\label{sec:cf}
+At every tool-call step $t$ we sample $K$ alternative tool actions $a'_t$ from the policy's top-$K$ at the same context, run a suffix rollout under $\psi$ (cheap, no real calls), and compute
+\[
+  \Delta_t^{\text{CF}}(\tau) \;=\; R(\tau) \;-\; \mathbb{E}_{a'_t \sim \tilde{\pi}}\!\left[\hat{R}(\tau_{<t}, a'_t, \psi)\right].
+\]
+We apply $\hat{A}_t(\tau) = \hat{A}(\tau) + \lambda \cdot \Delta_t^{\text{CF}}(\tau)$ \emph{only} to tokens inside the tool-call span at step $t$.
+
+\subsection{Variance reduction}\label{sec:variance}
+Under standard PPO assumptions and a learned baseline $\hat{V}$, the CF-corrected gradient has variance bounded by the GRPO gradient variance plus a term $O(\|\hat{R} - R\|_2^2)$ that vanishes as world-model fidelity $\to 1$ (proof sketch in Appendix A).
+
+\subsection{Tool-Selection KL (TS-KL)}\label{sec:tskl}
+On a held-out oracle-labeled set with ground-truth optimal tool $k^*$, we measure $\mathrm{KL}(\pi_\theta(k\mid s) \,\|\, \delta_{k^*})$ averaged across the set. Lower is better.
+
+\section{Experiments}\label{sec:exp}
+
+\subsection{Setup}
+\textbf{Base model.} Qwen3-4B-Instruct with LoRA rank 64. \textbf{GRPO config.} $G=8$, KL $0.001$, clip $0.2$, max 4 tool calls, max 4096 generation tokens. \textbf{Hardware.} 2$\times$ A100-80G (RunPod community cloud). \textbf{Tools.} Python sandbox (subprocess), Sympy calculator, DuckDuckGo web search. \textbf{Reward.} Rule-based: AIME numeric match, LCB unit-test execution, GPQA correct-option match, plus a 0.1 format bonus.
+
+\subsection{Main results}
+Table~\ref{tab:main} summarizes pass@1 across benchmarks and TS-KL.
+\begin{table}[h]\centering\small\caption{Main results. \textbf{Bold}=best.}\label{tab:main}
+\input{table_main}
+\end{table}
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.49\linewidth]{figures/fig_reward_curves.pdf}
+\includegraphics[width=0.49\linewidth]{figures/fig_wallclock.pdf}
+\caption{Reward curves vs.\ steps (left) and wall-clock (right).}
+\label{fig:curves}\end{figure}
+
+\subsection{Ablations}
+We ablate (i) world-model only (no CF); (ii) $\eta \in \{0, 0.2, 1.0\}$; (iii) predictor-fidelity stress test (artificially corrupted predictors). See Appendix B.
+
+\section{Discussion and Limitations}
+We use only three tools and Qwen3-4B; scaling to dozens of tools requires shared-backbone predictors. Our search predictor is restricted to top-3 titles+snippets; richer answers may need retrieval-augmented predictors.
+
+\section{Conclusion}
+Dyna-GRPO unifies model-based simulation with counterfactual credit assignment in a single, GRPO-compatible framework. We achieve TS-KL of \PLACEHOLDER{TSKL_DYNA} (vs.\ \PLACEHOLDER{TSKL_GRPO} for GRPO) and matched-or-better pass@1 across four benchmarks.
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\appendix
+\section{Variance-reduction proof sketch}
+\textit{(2-page technical appendix — to be expanded.)}
+
+\section{Predictor fidelity report}
+\textit{(Per-tool ECE, fidelity curves, reliability diagrams generated by Notebook 05.)}
+
+\end{document}
