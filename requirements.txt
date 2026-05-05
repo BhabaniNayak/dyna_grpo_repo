@@ -24,7 +24,7 @@ matplotlib
 seaborn
 tqdm
 wandb
-duckduckgo-search==6.3.5
+ddgs
 sympy==1.13.3
 tenacity
 jupyterlab

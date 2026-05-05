@@ -127,7 +127,10 @@ def _code(args: dict) -> ToolResult:
 # ---------------- web search (free, via duckduckgo) ----------------
 def _search(args: dict) -> ToolResult:
     """args = {'query': str, 'k': int=3}. Returns top-k titles+snippets, structured."""
-    from duckduckgo_search import DDGS
+    try:
+        from ddgs import DDGS                       # new package name
+    except ImportError:
+        from duckduckgo_search import DDGS         # fallback to old name
     query = args.get("query", "")
     k = int(args.get("k", TOOL.search_top_k))
     t0 = time.perf_counter()
